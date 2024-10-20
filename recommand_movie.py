@@ -10,6 +10,8 @@ from typing import List
 import multiprocessing
 import logging
 
+if not os.path.exists('logs'):
+    os.makedirs('logs')
 #log_config
 logging.basicConfig(filename='logs/app.log',level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -17,8 +19,9 @@ logging.basicConfig(filename='logs/app.log',level=logging.INFO, format='%(asctim
 evaluate_logger = logging.getLogger('evaluate_logger')
 evaluate_handler = logging.FileHandler('logs/evaluate.log')
 evaluate_handler.setLevel(logging.INFO)
-logging.basicConfig(filename='app.log',level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+evaluate_handler.setFormatter(formatter)
+evaluate_logger.addHandler(evaluate_handler)
 
 def timeit(func):
     @wraps(func)
@@ -44,10 +47,10 @@ def measure_memory(func):
         mem_after = process.memory_info().rss / 1024 / 1024  # 转换为MB
         # 计算内存使用差异
         mem_diff = mem_after - mem_before
-        print(f"function {func.__name__} stockage use:")
-        print(f"before run: {mem_before:.2f} MB")
-        print(f"after run: {mem_after:.2f} MB")
-        print(f"add: {mem_diff:.2f} MB")
+        logging.info(f"function {func.__name__} stockage use:")
+        logging.info(f"before run: {mem_before:.2f} MB")
+        logging.info(f"after run: {mem_after:.2f} MB")
+        logging.info(f"add: {mem_diff:.2f} MB")
         return result
     return wrapper
 
@@ -130,7 +133,8 @@ class RecommandMovie:
         # 计算预测评分
         predicted_ratings = weighted_sum.flatten() / normalization
         return pd.Series(predicted_ratings, index=unrated_movies)
-    @printLog
+
+
     @timeit
     def evaluate_model_item_based(self, test_size=0.2, k=10):
    
@@ -156,7 +160,7 @@ class RecommandMovie:
         evaluate_logger.info(f'base line (global mean) RMSE : {rmse_baseline:.4f}')
         return rmse
 
-    @printLog
+
     @timeit
     def evaluate_model_user_based(self, test_size=0.2, k=10):
         # split
@@ -186,7 +190,6 @@ class RecommandMovie:
     
     # This is for eval
     @measure_memory
-    @printLog
     def predict_rating_item_based(self, user_id, movie_id, rating_matrix, item_similarity, k=10):
         # 检查用户和电影是否在矩阵中
         if user_id not in rating_matrix.index:
@@ -260,7 +263,6 @@ class RecommandMovie:
     
     # This is for eval
     @measure_memory
-    @printLog
     def predict_rating_user_based(self, user_id, movie_id, rating_matrix, user_similarity, k=10):
         # 检查用户和电影是否在矩阵中
         if user_id not in rating_matrix.index or movie_id not in rating_matrix.columns:
@@ -394,7 +396,7 @@ class RecommandMovie:
     @staticmethod
     def printResult(result_sets:List,output_file:str):
         with open(output_file,"w") as f:
-            for i in result_sets:
+            for i in sorted(result_sets):
                 line = " ".join(map(str,i)) + "\n"
                 f.write(line) # write file
                 print(line.strip())
@@ -406,6 +408,6 @@ if __name__ == '__main__':
     data_path = os.path.join(dir_name,"data/train_ratings.csv")
     choose_model = ['item-item','user-user']
     # RecommandMovie(data_path).evaluate_model_user_based(k=500)
-    # RecommandMovie(data_path).evaluate_model_item_based(k=500)
+    RecommandMovie(data_path).evaluate_model_item_based(k=500)
     # RecommandMovie(data_path,chooce_model=choose_model[0]).recommend_movies_user_itemrc(top_n=1)
-    RecommandMovie(data_path).recommend_movies_user_userrc()
+    # RecommandMovie(data_path).recommend_movies_user_userrc()
