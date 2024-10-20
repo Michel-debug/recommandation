@@ -8,6 +8,16 @@ import psutil
 from sklearn.model_selection import train_test_split
 from typing import List
 import multiprocessing
+import logging
+
+#log_config
+logging.basicConfig(filename='logs/app.log',level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+#config test record
+evaluate_logger = logging.getLogger('evaluate_logger')
+evaluate_handler = logging.FileHandler('logs/evaluate.log')
+evaluate_handler.setLevel(logging.INFO)
+logging.basicConfig(filename='app.log',level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def timeit(func):
@@ -43,13 +53,13 @@ def measure_memory(func):
 
 def printLog(func):
     @wraps(func)
-    def print_wrapper(*args,**kwargs):
+    def log_wrapper(*args, **kwargs):
         func_name = func.__name__
-        print(f"func {func_name}  is starting")
-        result = func(*args,**kwargs)
-        print(f"func {func_name}  is finished")
+        logging.info(f"func {func_name} is starting")
+        result = func(*args, **kwargs)
+        logging.info(f"func {func_name} is finished")
         return result
-    return print_wrapper
+    return log_wrapper
 
 class RecommandMovie:
     @printLog
@@ -61,6 +71,7 @@ class RecommandMovie:
             self.user_similarity = self.cosine_similarity_user()
         elif chooce_model == "item-item":
             self.item_similarity = self.cosine_similarity_item()
+        print("*** The entire reasoning time is expected to be 10-40min. please attend ***")
         
         
     @printLog
@@ -93,6 +104,7 @@ class RecommandMovie:
         return pd.DataFrame(similarity, index=self.rating_matrix.index, columns=self.rating_matrix.index)
 
     @printLog
+    @measure_memory
     def predict_ratings_for_user(self,user_id, k=10):
         # 获取与目标用户相似的其他用户
         similar_users = self.user_similarity[user_id].drop(user_id).dropna()
@@ -118,10 +130,10 @@ class RecommandMovie:
         # 计算预测评分
         predicted_ratings = weighted_sum.flatten() / normalization
         return pd.Series(predicted_ratings, index=unrated_movies)
-    
     @printLog
+    @timeit
     def evaluate_model_item_based(self, test_size=0.2, k=10):
-        # 1. 划分数据集
+   
         train_data, test_data = train_test_split(self.rating_data, test_size=test_size, random_state=42)
 
         # 2. 使用训练集构建评分矩阵和物品相似度矩阵
@@ -136,15 +148,16 @@ class RecommandMovie:
         # 4. 计算评估指标（RMSE）
         mse = np.mean((test_data['rating'] - test_data['predicted_rating']) ** 2)
         rmse = np.sqrt(mse)
-        print(f'基于物品的协同过滤模型的RMSE为: {rmse:.4f}')
+        evaluate_logger.info(f'An item-based collaborative filtering model RMSE : {rmse:.4f}')
         # 测试集上的RMSE
         global_mean = self.rating_data['rating'].mean()
         mse_baseline = np.mean((test_data['rating'] - global_mean) ** 2)
         rmse_baseline = np.sqrt(mse_baseline)
-        print(f'基线模型（全局平均评分）的RMSE为: {rmse_baseline:.4f}')
+        evaluate_logger.info(f'base line (global mean) RMSE : {rmse_baseline:.4f}')
         return rmse
 
     @printLog
+    @timeit
     def evaluate_model_user_based(self, test_size=0.2, k=10):
         # split
         train_data, test_data = train_test_split(self.rating_data, test_size=test_size, random_state=42)
@@ -162,16 +175,18 @@ class RecommandMovie:
         # 4. 计算评估指标（RMSE）
         mse = np.mean((test_data['rating'] - test_data['predicted_rating']) ** 2)
         rmse = np.sqrt(mse)
-        print(f'模型的RMSE为: {rmse:.4f}')
-                # 全局平均评分
+        evaluate_logger.info(f'An user-based collaborative filtering model RMSE: {rmse:.4f}')
+        # 全局平均评分
         global_mean = self.rating_data['rating'].mean()
         # 测试集上的RMSE
         mse_baseline = np.mean((test_data['rating'] - global_mean) ** 2)
         rmse_baseline = np.sqrt(mse_baseline)
-        print(f'基线模型（全局平均评分）的RMSE为: {rmse_baseline:.4f}')
+        evaluate_logger.info(f'base line（global mean） RMSE : {rmse_baseline:.4f}')
         return rmse
     
     # This is for eval
+    @measure_memory
+    @printLog
     def predict_rating_item_based(self, user_id, movie_id, rating_matrix, item_similarity, k=10):
         # 检查用户和电影是否在矩阵中
         if user_id not in rating_matrix.index:
@@ -242,7 +257,10 @@ class RecommandMovie:
         # 将预测评分限制在1到5之间
         predicted_rating = np.clip(predicted_rating, 1, 5)
         return predicted_rating
+    
     # This is for eval
+    @measure_memory
+    @printLog
     def predict_rating_user_based(self, user_id, movie_id, rating_matrix, user_similarity, k=10):
         # 检查用户和电影是否在矩阵中
         if user_id not in rating_matrix.index or movie_id not in rating_matrix.columns:
@@ -320,8 +338,8 @@ class RecommandMovie:
             # 按照预测评分排序，推荐前 top_n 个电影
             recommendations = predicted_ratings.sort_values(ascending=False).head(top_n)
             result.append([user_id,recommendations.index[0],round(recommendations.values[0],1)])
+    
     @timeit
-    @measure_memory
     @printLog
     def recommend_movies_user_userrc(self,top_n=1, k=10):
         # result = []
@@ -337,7 +355,7 @@ class RecommandMovie:
         # 预测用户对未评分电影的评分
         for p in processes:
             p.join()
-        RecommandMovie.printResult(list(result))
+        RecommandMovie.printResult(list(result),output_file="user_user_fc.out")
         
     
     def process_user_item(self, start_i, end_i, user_ids, top_n, k, result):
@@ -353,10 +371,9 @@ class RecommandMovie:
             result.append([user_id, recommended_movies[0][0], round(recommended_movies[0][1], 1)])
     
     @timeit
-    @measure_memory
     @printLog
     def recommend_movies_user_itemrc(self, top_n=1, k=10):
-        user_ids = list(self.rating_matrix.index)[:50]
+        user_ids = list(self.rating_matrix.index)[:2]
         manager = multiprocessing.Manager()
         result = manager.list()  # 使用共享列表
 
@@ -372,14 +389,15 @@ class RecommandMovie:
         for p in processes:
             p.join()
 
-        RecommandMovie.printResult(list(result))
+        RecommandMovie.printResult(list(result),output_file="item_item_fc.out")
     
     @staticmethod
-    def printResult(result_sets:List):
-        for i in result_sets:
-            print(" ".join(map(str,i)))
-        
-
+    def printResult(result_sets:List,output_file:str):
+        with open(output_file,"w") as f:
+            for i in result_sets:
+                line = " ".join(map(str,i)) + "\n"
+                f.write(line) # write file
+                print(line.strip())
 
 if __name__ == '__main__':
     #data_path = os.path.join()"./data/train_ratings.csv"
@@ -387,11 +405,7 @@ if __name__ == '__main__':
     dir_name = os.path.dirname(current_file_path)
     data_path = os.path.join(dir_name,"data/train_ratings.csv")
     choose_model = ['item-item','user-user']
-
-    # result_list = RecommandMovie(data_path).recommend_movies_user_userrc()
-    # for i in result_list:
-    #     print(" ".join(map(str,i)))
     # RecommandMovie(data_path).evaluate_model_user_based(k=500)
     # RecommandMovie(data_path).evaluate_model_item_based(k=500)
-    RecommandMovie(data_path,chooce_model=choose_model[0]).recommend_movies_user_itemrc(top_n=1)
-    # RecommandMovie(data_path).recommend_movies_user_userrc()
+    # RecommandMovie(data_path,chooce_model=choose_model[0]).recommend_movies_user_itemrc(top_n=1)
+    RecommandMovie(data_path).recommend_movies_user_userrc()
