@@ -19,4 +19,4 @@ if __name__ == '__main__':
     # define the similarity threshold
     similarity_threshold = args.similarity_threshold
 
-    RecommandMovie(data_path).recommend_movies_user_userrc()
+    RecommandMovie(data_path).recommend_movies_user_itemrc(threshold=similarity_threshold)
