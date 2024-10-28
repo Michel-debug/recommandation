@@ -2,3 +2,4 @@ logs/
 __pycache__/
 .history
 *.out
+*.pkl
