@@ -145,11 +145,9 @@ class RecommandMovie:
         # split
         train_data, test_data = train_test_split(self.rating_data, test_size=test_size, random_state=42)
         
-        # 2. 使用训练集构建评分矩阵和用户相似度矩阵
         rating_matrix = train_data.pivot_table(values='rating', index='user_id', columns='movie_id')
         user_similarity = self.compute_user_similarity(rating_matrix)
         
-        # 3. 预测测试集中的评分
         test_data = test_data.copy()
         test_data['predicted_rating'] = test_data.apply(
             lambda row: self.predict_rating_user_based(row['user_id'], 
@@ -159,13 +157,12 @@ class RecommandMovie:
                                                         threshold), axis=1
         )
         
-        # 4. 计算评估指标（RMSE）
         mse = np.mean((test_data['rating'] - test_data['predicted_rating']) ** 2)
         rmse = np.sqrt(mse)
         evaluate_logger.info(f'An user-based collaborative parameter: threshold {threshold} filtering model RMSE: {rmse:.4f}')
-        # 全局平均评分
+     
         global_mean = self.rating_data['rating'].mean()
-        # 测试集上的RMSE
+        
         mse_baseline = np.mean((test_data['rating'] - global_mean) ** 2)
         rmse_baseline = np.sqrt(mse_baseline)
         evaluate_logger.info(f'base line（global mean） RMSE : {rmse_baseline:.4f}')
