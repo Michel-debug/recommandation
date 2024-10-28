@@ -1,5 +1,5 @@
 logs/
 __pycache__/
-.history
+.history/
 *.out
 *.pkl
