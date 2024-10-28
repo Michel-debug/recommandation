@@ -4,7 +4,7 @@ import multiprocessing
 from recommand_movie import RecommandMovie
 
 def evaluate_threshold(threshold, data_path):
-    model = RecommandMovie(data_path)
+    model = RecommandMovie(data_path, output_file='evaluate')
     # choose model and evaluate
     model.evaluate_model_user_based(threshold=threshold)
     model.evaluate_model_item_based(threshold=threshold)

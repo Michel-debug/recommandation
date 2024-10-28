@@ -425,4 +425,5 @@ if __name__ == '__main__':
 
     # RecommandMovie(data_path,chooce_model=choose_model[0]).recommend_movies_user_itemrc(threshold=0.05)
     # RecommandMovie(data_path).recommend_movies_user_userrc(threshold=0.04)
-    RecommandMovie(data_path,chooce_model=choose_model[1]).recommend_movies(threshold=0.04)
+    # RecommandMovie(data_path,chooce_model=choose_model[1],output_file="test.out").recommend_movies(threshold=0.04)
+    RecommandMovie(data_path,chooce_model=choose_model[1],output_file="test.out").recommend_movies(threshold=0.04)
